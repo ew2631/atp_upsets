@@ -1,4 +1,4 @@
-# atp_upsets
+# upset_the_atp
 ### Predicting the outcome of ATP matches
 
 ## Abstract
