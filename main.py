@@ -74,17 +74,14 @@ X_test_scaled = pd.DataFrame(scaler.transform(X_test),columns=list(X_train.colum
 
 ################### Logistic Regression ################
 
+#Establish baseline logistic regression model
 lr = LogisticRegression(solver='liblinear', penalty = 'l2',random_state=42)
 lr.fit(X_train_scaled, y_train)
-predictions=lr.predict(X_test_scaled)
-score=metrics.accuracy_score(y_test,predictions)
-precision=metrics.precision_score(y_test,predictions)
-recall=metrics.recall_score(y_test,predictions)
-
-print(f1_score(lr.predict(X_test_scaled), y_test))
-print(roc_auc_score(y_test, predictions))
-print(classification_report(y_test, predictions))
-
+lr_predictions=lr.predict(X_test_scaled)
+#
+# #Understanding model outcomes
+lr_results=final_comparison([lr], X_test, y_test)
+print(lr_results)
 
 cm_plt=make_confusion_matrix(lr, X_test_scaled, y_test,class_labels=['not upset','upset'])
 cm_plt.show()
@@ -94,9 +91,12 @@ roc_curve.show()
 coef_table = pd.DataFrame(list(X_train_scaled.columns),columns=['Variable']).copy()
 coef_table.insert(len(coef_table.columns),"Coefs",lr.coef_.transpose())
 coefficient_table= pd.concat([coef_table.sort_values('Coefs', ascending=False)[:5], coef_table.sort_values('Coefs', ascending=False)[-5:]])
+print(coefficient_table)
 coefficient_table.to_csv('coefficient_table.csv')
 
 ################### Decision Tree ################
+
+#For Decision Trees, going to tune hyperparameters to get best model performance
 check_params={
                 'max_leaf_nodes': list(range(1000,11000,1000)),
                 'criterion': ['gini','entropy'],
@@ -107,15 +107,15 @@ clf = tree.DecisionTreeClassifier(random_state=65)
 clf.fit(X_train, y_train)
 create_grid=GridSearchCV(clf, param_grid=check_params, cv=4, verbose=10, return_train_score=True, scoring='roc_auc')
 create_grid.fit(X_train, y_train)
-
 print("Train score for %d fold CV := %3.2f" %(4, create_grid.score(X_train, y_train)))
 print("Test score for %d fold CV := %3.2f" %(4, create_grid.score(X_test, y_test)))
 print ("!!!! best fit parameters from GridSearchCV !!!!")
 print (create_grid.best_params_)
-
+#
+# #save grid search results in case we need to debug
 joblib.dump(create_grid, 'grid_search_clf.pkl')
-
-WINNING MODEL
+#
+# #WINNING MODEL
 clf = tree.DecisionTreeClassifier(criterion= 'entropy', max_depth=50, max_leaf_nodes= 1000, min_impurity_decrease=0.01, random_state=65)
 clf.fit(X_train, y_train)
 predictions=clf.predict(X_test)
@@ -124,32 +124,23 @@ print(roc_auc_score(y_test, predictions))
 score=metrics.accuracy_score(y_test,predictions)
 precision=metrics.precision_score(y_test,predictions)
 recall=metrics.recall_score(y_test,predictions)
-#print(recall)
 
-plt.figure(figsize=(50,30))
-tree.plot_tree(clf,
-               feature_names=list(X_train.columns),
-               class_names=['not upset','upset'],
-               fontsize=8)
-plt.show()
+clf_results=final_comparison([clf], X_test, y_test)
+print(clf_results)
 
+cm_plt=make_confusion_matrix(clf, X_test, y_test,class_labels=['not upset','upset'])
+cm_plt.show()
+roc_curve=plot_roc(clf, X_test, y_test)
+roc_curve.show()
 
-################### Random Forest ###################
+# ################### Random Forest ###################
 
-rf = RandomForestClassifier(n_jobs=-1, random_state=65)
-rf.fit(X_train,y_train)
-predictions=rf.predict(X_test)
-print(classification_report(y_test, predictions))
-print("ROC score: {a}".format(a= roc_auc_score(y_test, predictions)))
-print(rf.__dict__)
-print("Baseline for max_leaf: {b}".format(b=rf.__dict__.get('max_leaf_nodes')))
-
-Valid parameters:
-['bootstrap', 'ccp_alpha', 'class_weight', 'criterion',
-'max_depth', 'max_features', 'max_leaf_nodes',
-'max_samples', 'min_impurity_decrease', 'min_samples_leaf',
-'min_samples_split', 'min_weight_fraction_leaf',
-'n_estimators', 'n_jobs', 'oob_score', 'random_state', 'verbose', 'warm_start'].
+# Valid parameters:
+# ['bootstrap', 'ccp_alpha', 'class_weight', 'criterion',
+# 'max_depth', 'max_features', 'max_leaf_nodes',
+# 'max_samples', 'min_impurity_decrease', 'min_samples_leaf',
+# 'min_samples_split', 'min_weight_fraction_leaf',
+# 'n_estimators', 'n_jobs', 'oob_score', 'random_state', 'verbose', 'warm_start'].
 
 check_params={
                 'class_weight': ["balanced", {0: 1, 1: 2}]
@@ -159,6 +150,8 @@ check_params={
                 #'min_impurity_decrease': np.arange(0.0,0.1,0.01),
                 #'criterion': ['mse','mae'],
             }
+rf = RandomForestClassifier(n_jobs=-1, random_state=65)
+
 create_grid=GridSearchCV(rf, param_grid=check_params, cv=4, verbose=10, return_train_score=True, scoring='roc_auc')
 create_grid.fit(X_train, y_train)
 print("Train score for %d fold CV := %3.2f" %(4, create_grid.score(X_train, y_train)))
@@ -173,16 +166,18 @@ joblib.dump(create_grid, 'grid_search_rf.pkl')
 
 #WINNING MODEL
 rf = RandomForestClassifier(class_weight= {0: 1, 1: 2}, max_features= None, n_estimators= 900, random_state=65)
-rf.fit(X_train,y_train)
-predictions=rf.predict(X_test)
-rf.fit(X_train,y_train)
-predictions=rf.predict(X_test)
-print(classification_report(y_test, predictions))
-print("ROC score: {a}".format(a= roc_auc_score(y_test, predictions)))
+rf.fit(X_train, y_train)
 
-################### XGBoost ###################
-
-
+rf_results=final_comparison([rf], X_test, y_test)
+print(rf_results)
+cm_plt=make_confusion_matrix(rf, X_test, y_test,class_labels=['not upset','upset'])
+cm_plt.show()
+roc_curve=plot_roc(rf, X_test, y_test)
+roc_curve.show()
+#
+# ################### XGBoost ###################
+#
+#
 xgb_model = xgb.XGBClassifier(random_state = 89)
 xgb_model.fit(X_train,y_train)
 xgb_params={
@@ -199,26 +194,23 @@ print("Validation score for %d fold CV := %3.2f" %(4, create_grid.score(X_val, y
 print ("!!!! best fit parameters from GridSearchCV !!!!")
 print (create_grid.best_params_)
 joblib.dump(create_grid, 'grid_search_xgb.pkl')
-
-#WINNING MODEL
+#
+# #WINNING MODEL
 xgb_model = xgb.XGBClassifier(
      max_depth=10
     ,random_state=89
     ,verbosity=3
 )
-xgb_model.fit(X_train,y_train)
-predictions=xgb_model.predict(X_test)
-print(classification_report(y_test, predictions))
-print("ROC score: {a}".format(a= roc_auc_score(y_test, predictions)))
-score=metrics.accuracy_score(y_test,predictions)
-precision=metrics.precision_score(y_test,predictions)
-recall=metrics.recall_score(y_test,predictions)
-print(score)
-print(precision)
-print(recall)
-xgb_coef=generate_coef_table(X_train.columns, xgb_model, 'tree', 10)
-xgb_coef.to_csv('xgb_coef.csv')
-################### Model Comparison ###################
+xgb_model.fit(X_train, y_train)
+
+xgb_results=final_comparison([xgb_model], X_test, y_test)
+print(xgb_results)
+cm_plt=make_confusion_matrix(xgb_model, X_test, y_test,class_labels=['not upset','upset'])
+cm_plt.show()
+roc_curve=plot_roc(xgb_model, X_test, y_test)
+roc_curve.show()
+
+# ################### Model Comparison ###################
 
 final_scores = final_comparison([clf, rf,xgb_model], X_test, y_test)
 final_scores.columns=['Decision Tree', 'Random Forest','XGB']

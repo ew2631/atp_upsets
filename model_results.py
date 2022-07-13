@@ -24,7 +24,7 @@ def make_confusion_matrix(model, x_test, y_test, class_labels,threshold=0.5):
 def plot_roc(model, x_test, y_test):
     fpr, tpr, thresholds = metrics.roc_curve(y_test, model.predict(x_test))
     plt.plot(fpr, tpr,lw=2)
-    #plt.plot([0,1],[0,1],c='violet',ls='--')
+    plt.plot([0,1],[0,1],c='violet',ls='--')
     plt.xlim([-0.05,1.05])
     plt.ylim([-0.05,1.05])
     plt.xlabel('False positive rate')
